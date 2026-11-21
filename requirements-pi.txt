@@ -1,0 +1,11 @@
+# Raspberry Pi 3 yoki 4 (Raspberry Pi OS Bookworm 64-bit, Python 3.11+) uchun.
+# OpenCV, numpy, PIL tizim paketidan: sudo apt install -y python3-opencv python3-numpy python3-pil
+# CSI kamera (vision.camera = "csi") ishlatilsa qo'shimcha: sudo apt install -y python3-picamera2
+# venv: python3 -m venv --system-site-packages .venv && .venv/bin/pip install -r requirements-pi.txt
+gpiozero>=2.0
+lgpio
+adafruit-blinka
+adafruit-circuitpython-pca9685
+adafruit-circuitpython-vl53l0x
+luma.lcd
+ai-edge-litert
