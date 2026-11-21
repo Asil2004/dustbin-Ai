@@ -43,11 +43,12 @@ atcs/
   cameras.py      USB webkamera va Pi kamerasi (bir xil sozlama bilan ochiladi)
   collect.py      o'qitish uchun rasm yig'ish
   livetest.py     kamerani jonli ko'rish va modelni sinash (oynada yoki brauzerda)
+  camcal.py       USB kamera fokusi va ekspozitsiyasini avtomatik topish
   display.py      3,5" TFT holat ekrani
   events.py       hodisalar jurnali (logs/events.jsonl)
 training/train.py MobileNetV3 o'qitish -> int8 TFLite (Google Colab)
 config/atcs.toml  barcha sozlamalar
-tests/            31 ta sinov (simulyatsiya, kamera, buyumni sezish, jonli sinov)
+tests/            36 ta sinov (simulyatsiya, kamera, buyumni sezish, jonli sinov)
 ```
 
 ## Kompyuterda sinash (Windows)

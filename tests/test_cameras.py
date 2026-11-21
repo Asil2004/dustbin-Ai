@@ -123,7 +123,7 @@ class UsbCameraTest(unittest.TestCase):
         self.assertEqual(p[cv2.CAP_PROP_FRAME_WIDTH], 1920)
 
     def test_manual_focus(self):
-        cam = self.open(usb_focus=120)
+        cam = self.open(usb_focus=120)  # son = qo'lda
         cam.close()
         self.assertEqual(FakeCapture.instances[-1].props[cv2.CAP_PROP_FOCUS], 120.0)
 

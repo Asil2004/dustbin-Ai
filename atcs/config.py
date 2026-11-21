@@ -37,6 +37,10 @@ def _validate(cfg) -> None:
         raise ValueError('sorting.unknown_action: "operator" yoki "bin" bo\'lishi kerak')
     if not (0 < cfg.vision.presence_min_fraction < 1 and 0 < cfg.vision.presence_pixel_diff < 255):
         raise ValueError("vision.presence_min_fraction (0..1) yoki presence_pixel_diff (0..255) noto'g'ri")
+    for key in ("usb_focus", "usb_exposure"):
+        val = getattr(cfg.vision, key)
+        if (isinstance(val, str) and val != "auto") or isinstance(val, bool):
+            raise ValueError(f"vision.{key} \"auto\" yoki son bo'lishi kerak")
     if cfg.vision.camera not in ("usb", "csi"):
         raise ValueError("vision.camera 'usb' yoki 'csi' bo'lishi kerak")
     if len(cfg.vision.labels) != 5 or len(cfg.bins.names) != 5:

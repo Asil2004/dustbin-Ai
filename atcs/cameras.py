@@ -129,28 +129,50 @@ class UsbCamera:
         win = sys.platform == "win32"
         time.sleep(float(v.usb_warmup_s))                 # avto-fokus va avto-ekspozitsiya joyiga tushsin
         report = []
-        if v.usb_focus >= 0:
-            cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
-            cap.set(cv2.CAP_PROP_FOCUS, float(v.usb_focus))
-            report.append(f"fokus={v.usb_focus:g} (qo'lda)")
+        if not isinstance(v.usb_focus, str):
+            self.set_focus(v.usb_focus)
+            report.append(f"fokus={v.usb_focus:g}")
         else:
             focus = cap.get(cv2.CAP_PROP_FOCUS)
             cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
-            if focus >= 0:
+            if focus > 0:
                 cap.set(cv2.CAP_PROP_FOCUS, focus)
-            report.append(f"fokus={focus:g} (avtodan qotirildi)")
+                report.append(f"fokus={focus:g} (avtodan)")
+            else:                                         # ko'p kameralar avto-fokus joyini aytmaydi
+                report.append("fokus NOMA'LUM: python3 -m atcs.camcal")
         if v.lock_exposure:
-            exp = cap.get(cv2.CAP_PROP_EXPOSURE) if v.usb_exposure < 0 else float(v.usb_exposure)
-            cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25 if win else 1)       # qo'lda rejim (DSHOW / V4L2)
-            cap.set(cv2.CAP_PROP_EXPOSURE, exp)
+            if not isinstance(v.usb_exposure, str):
+                self.set_exposure(v.usb_exposure)
+                report.append(f"ekspozitsiya={v.usb_exposure:g}")
+            else:
+                exp = cap.get(cv2.CAP_PROP_EXPOSURE)
+                self.set_exposure(exp)
+                report.append(f"ekspozitsiya={exp:g} (sozlanmagan: atcs.camcal)")
             wb = cap.get(cv2.CAP_PROP_WB_TEMPERATURE)
             cap.set(cv2.CAP_PROP_AUTO_WB, 0)
             if wb > 0:
                 cap.set(cv2.CAP_PROP_WB_TEMPERATURE, wb)
-            report.append(f"ekspozitsiya={exp:g}, oq balans={wb:g} (qotirildi)")
-        time.sleep(0.3)
+            report.append(f"oq balans={wb:g}")
+        time.sleep(1.0)                                   # yangi sozlamali kadrlar kelsin (fon shulardan olinadi)
         self.settings = ", ".join(report)
         self._log(f"USB kamera {self._frame.shape[1]}x{self._frame.shape[0]}: {self.settings}")
+
+    def set_focus(self, value: float) -> None:
+        self._cap.set(self._cv2.CAP_PROP_AUTOFOCUS, 0)
+        self._cap.set(self._cv2.CAP_PROP_FOCUS, float(value))
+
+    def set_exposure(self, value: float) -> None:
+        self._cap.set(self._cv2.CAP_PROP_AUTO_EXPOSURE, 0.25 if sys.platform == "win32" else 1)
+        self._cap.set(self._cv2.CAP_PROP_EXPOSURE, float(value))
+
+    def roi_gray(self, settle_s: float = 0.0) -> np.ndarray:
+        """settle_s kutib, keyin kelgan yangi kadrning ROI qismi, kulrang, to'liq o'lchamda (kalibrlash uchun)."""
+        from .vision import crop_roi
+        t = time.monotonic() + settle_s
+        if settle_s:
+            time.sleep(settle_s)
+        bgr = self._latest(newer_than=t, timeout=2.0)
+        return self._cv2.cvtColor(np.ascontiguousarray(crop_roi(bgr, self._det.roi)), self._cv2.COLOR_BGR2GRAY)
 
     # -- Camera interfeysi --
     def _gray(self) -> np.ndarray:

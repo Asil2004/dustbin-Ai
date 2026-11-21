@@ -104,8 +104,9 @@ roi = [0.30, 0.15, 0.40, 0.70]   # shlyuz oldidagi zona: x, y, eni, bo'yi (kadr 
 usb_index = 0               # /dev/video0 (Windows: 0 = birinchi kamera)
 usb_fps = 15
 usb_warmup_s = 2.0          # ochilgach avto-fokus/ekspozitsiya joyiga tushishi uchun kutish
-usb_focus = -1              # -1 = avto-fokus topgan qiymatni qotirish; >=0 = qo'lda (drayver birligida)
-usb_exposure = -1           # -1 = avto-ekspozitsiya topgan qiymatni qotirish; >=0 = qo'lda
+# fokus va ekspozitsiya: "auto" yoki son (drayver birligida). Sonni python3 -m atcs.camcal --save topib yozadi.
+usb_focus = "auto"
+usb_exposure = "auto"
 # CSI kamera (Camera Module 3)
 lens_position = 8.7         # qo'lda fokus, dioptriya = 1 / 0.115 m
 lock_exposure = true        # avto-ekspozitsiya va oq balansni isitishdan keyin qotirish

@@ -51,7 +51,24 @@ v4l2-ctl -d /dev/video0 --list-formats-ext | grep -A1 MJPG | grep 1920x1080
 Ikkinchi buyruq `1920x1080` qatorini chiqarishi kerak. Hech narsa chiqmasa, kamera bu o'lchamni MJPG formatida
 bermaydi: unda chiqqan ro'yxatni menga yuboring.
 
-## 4. Kamerani ekranda ko'rish
+## 4. Fokus va ekspozitsiyani kalibrlash
+
+Webkamera avto-fokus topgan joyni dasturga aytmaydi (`fokus NOMA'LUM` yoki `fokus=0` chiqsa, shu). Shuning uchun
+tiniq fokus va to'g'ri yorqinlikni bir marta avtomatik topamiz:
+
+1. Kamerani ish joyiga, lentadan 115 mm balandlikka mahkamlang. Yorug'lik ish rejimidagidek bo'lsin.
+2. Ramka ostiga **matn bosilgan oq qog'oz** qo'ying (har qanday chop etilgan varaq).
+3. Ishga tushiring (taxminan 1 daqiqa, kamera fokusni oldinga-orqaga yuritadi):
+
+```bash
+python3 -m atcs.camcal --save
+```
+
+Oxirida `usb_exposure` va `usb_focus` qiymatlari `config/atcs.toml` ga yoziladi va `livetest/camcal_natija.jpg`
+kadri saqlanadi. Shu kadrda harflar aniq o'qilishi kerak. `DIQQAT` qatorlari chiqsa, ularni bajaring
+(yorug'likni kuchaytirish yoki kamaytirish). Kamera surilsa yoki yorug'lik o'zgarsa, qayta kalibrlang.
+
+## 5. Kamerani ekranda ko'rish
 
 ```bash
 python3 -m atcs.livetest --no-model
@@ -68,13 +85,13 @@ Diqqat: brauzer rejimida tasvirni shu Wi-Fi tarmog'idagi har kim ko'rishi mumkin
 Birinchi qatorda kamera sozlamalari chiqadi:
 `USB kamera 1920x1080: fokus=..., ekspozitsiya=..., oq balans=... (qotirildi)`.
 
-## 5. Nimani tekshirish kerak
+## 6. Nimani tekshirish kerak
 
 | Tekshiruv | Qanday | Yaxshi natija |
 |---|---|---|
-| Tiniqlik | Kamerani 115 mm balandlikka qo'ying, ostiga igna qo'ying, `s` bilan kadr saqlang va kompyuterda kattalashtirib ko'ring | Igna qirralari aniq ko'rinadi. Xira bo'lsa, `config/atcs.toml` dagi `usb_focus` ga qiymat yozing (masalan 0, 50, 100, 150, 200 ni sinab ko'ring) |
+| Tiniqlik | Ostiga igna qo'ying, `s` bilan kadr saqlang va kompyuterda kattalashtirib ko'ring | Igna qirralari aniq ko'rinadi. Xira bo'lsa, `camcal` ni qayta ishga tushiring |
 | ROI | `f` bilan to'liq kadrga o'ting | Ramka buyum to'xtaydigan joyni qamrab oladi. Kerak bo'lsa `vision.roi` ni o'zgartiring |
-| Bo'sh lenta | Hech narsa qo'ymang, `b` bosing | Tepada `bo'sh (o'zgargan 0.00% ...)`, bir necha soniya davomida 0,05 % dan oshmaydi |
+| Bo'sh lenta | Hech narsa qo'ymang, **`b` bosing** (fon = bo'sh lenta namunasi; kamera surilsa yoki yorug'lik o'zgarsa, qayta bosing) | Tepada `bo'sh (o'zgargan 0.00% ...)`, bir necha soniya davomida 0,05 % dan oshmaydi |
 | Igna | Eng kichik ignani ramka ichiga qo'ying | `BUYUM BOR`, foiz chegaradan **ikki barobar** yuqori bo'lsa ishonchli |
 | Qo'lqop, bint | Katta buyumlarni qo'ying | `BUYUM BOR`, foiz ancha yuqori |
 | Tezlik | O'ng yuqoridagi fps | Pi 3 da taxminan 10–15 fps bo'lsa yetarli |
@@ -87,7 +104,7 @@ Bo'sh lentada ham `BUYUM BOR` chiqib qolsa (LED miltillashi, soya), uni oshiring
 Bu natijalarni (fps, bo'sh lenta va igna foizlari, saqlangan kadr) menga yuboring. Ular asosida sozlamalarni
 aniq qo'yamiz.
 
-## 6. Keyin: model bilan sinov
+## 7. Keyin: model bilan sinov
 
 Model o'qitilgach, uni Pi'ga ko'chirib, aniqlash tezligini o'lchaymiz:
 

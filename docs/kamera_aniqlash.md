@@ -16,10 +16,9 @@ stol to'xtab operatorni chaqiradi.
 - Standart kamera USB webkamera (`vision.camera = "usb"`), 1920×1080 da ishlaydi (`vision.capture_size`).
   4K kamera bo'lsa ham 1080p yetarli, Pi 3 uchun esa kerak. Kamera bu o'lchamni bermasa, dastur xato chiqaradi:
   unda kamera qo'llaydigan 16:9 o'lchamni yozing.
-- Ochilgach kamera `usb_warmup_s` soniya o'zi fokus va ekspozitsiyani topadi, keyin ular qotiriladi.
-  Qotirilgan qiymatlar ekranga chiqadi (`USB kamera 1920x1080: fokus=..., ekspozitsiya=...`). Rasm xira chiqsa,
-  `usb_focus` ga qo'lda qiymat bering. Hamma kamera drayveri ham qotirishni qo'llamaydi: rasmlar orasida
-  yorqinlik sakrasa, bu shundan.
+- **Fokus va ekspozitsiyani bir marta kalibrlang.** Ko'p webkameralar avto-fokus topgan joyni dasturga
+  aytmaydi, shuning uchun ularni `python3 -m atcs.camcal --save` topib, sozlamaga yozadi
+  (batafsil: [pi3_sinov.md](pi3_sinov.md), 4-qadam). Kamera balandligi yoki yorug'lik o'zgarsa, qayta kalibrlang.
 - Yorug'lik faqat ichki LED panellardan tushsin.
 - `python -m atcs.collect --label igna` ni ishga tushiring va `dataset/roi_tekshiruv.jpg` ni oching.
   Qizil ramka shlyuz oldida buyum to'xtaydigan zonani qamrab olishi kerak. To'g'ri kelmasa,
