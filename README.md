@@ -42,12 +42,12 @@ atcs/
   vision.py       TFLite klassifikatori, ROI kesish
   cameras.py      USB webkamera va Pi kamerasi (bir xil sozlama bilan ochiladi)
   collect.py      o'qitish uchun rasm yig'ish
-  livetest.py     modelni kamerada jonli sinash (noutbukda ham)
+  livetest.py     kamerani jonli ko'rish va modelni sinash (oynada yoki brauzerda)
   display.py      3,5" TFT holat ekrani
   events.py       hodisalar jurnali (logs/events.jsonl)
 training/train.py MobileNetV3 o'qitish -> int8 TFLite (Google Colab)
 config/atcs.toml  barcha sozlamalar
-tests/            28 ta sinov (simulyatsiya, kamera, kamera kesimi, jonli sinov)
+tests/            31 ta sinov (simulyatsiya, kamera, buyumni sezish, jonli sinov)
 ```
 
 ## Kompyuterda sinash (Windows)
@@ -61,6 +61,8 @@ py -m atcs --sim --items 20 --screen docs/ekran_namuna.png
 ```
 
 ## Raspberry Pi ga o'rnatish
+
+Pi 3 da birinchi kamera sinovi (motorlarsiz): [docs/pi3_sinov.md](docs/pi3_sinov.md).
 
 ```bash
 sudo apt install -y python3-opencv python3-numpy python3-pil

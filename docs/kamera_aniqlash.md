@@ -113,8 +113,8 @@ py -m atcs.livetest --model natija/atcs.tflite
 Oynada ROI ramkasi, qaror va 5 sinf ehtimoli ko'rinadi. Ramka yashil bo'lsa, buyum bo'limga ketadi,
 sariq bo'lsa, stol operatorni chaqiradi (chegara `sorting.min_confidence`). Tugmalar: `f` ROI va to'liq kadr
 orasida almashtiradi (kamera hali stolga o'rnatilmagan bo'lsa qulay), `s` kadrni `livetest/` ga saqlaydi,
-`q` chiqadi. Boshqa kamera uchun `--camera-index 1` qo'shing. Pi'da ham xuddi shu buyruq ishlaydi,
-lekin oyna ochilishi uchun Pi'ga monitor ulangan bo'lishi kerak (Lite tizimida grafik muhit yo'q).
+`q` chiqadi. Boshqa kamera uchun `--camera-index 1` qo'shing. Pi'da ham xuddi shu buyruq ishlaydi.
+Monitor bo'lmasa, tasvir brauzerda ko'rsatiladi (`--web`), qarang: [pi3_sinov.md](pi3_sinov.md).
 
 ## 5. Stolga qo'yish
 

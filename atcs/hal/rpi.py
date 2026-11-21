@@ -166,7 +166,7 @@ class UltrasonicGroup:
 
 class PiCamera:
     """Camera Module 3 Wide. Ish rejimida ham, rasm yig'ishda ham (atcs.collect) aynan shu sozlama ishlatiladi.
-    presence() - kichik kulrang kadr bilan fon farqi; capture() - to'liq RGB kadr (ROI klassifikatorda kesiladi)."""
+    presence() - lores kulrang kadrning ROI qismida fon bilan farq (cameras.PresenceDetector); capture() - to'liq RGB kadr (ROI klassifikatorda kesiladi)."""
     def __init__(self, vision_cfg):
         from picamera2 import Picamera2
         from libcamera import controls
@@ -174,7 +174,7 @@ class PiCamera:
         # RGB888 picamera2 da xotirada B,G,R tartibida -> "BGR888" so'rab, numpy da RGB olamiz
         cfg = self._cam.create_video_configuration(
             main={"size": tuple(vision_cfg.capture_size), "format": "BGR888"},
-            lores={"size": (160, 120), "format": "YUV420"})
+            lores={"size": (640, 360), "format": "YUV420"})
         self._cam.configure(cfg)
         self._cam.set_controls({"AfMode": controls.AfModeEnum.Manual,
                                 "LensPosition": float(vision_cfg.lens_position)})
@@ -186,21 +186,27 @@ class PiCamera:
                                     "ExposureTime": md["ExposureTime"], "AnalogueGain": md["AnalogueGain"],
                                     "ColourGains": md["ColourGains"]})
             time.sleep(0.3)
-        self._threshold = vision_cfg.presence_threshold
-        self._bg = None
+        from ..cameras import PresenceDetector
+        self._det = PresenceDetector(vision_cfg)
 
     def _gray(self):
-        yuv = self._cam.capture_array("lores")
-        return yuv[:120, :160].astype(np.int16)
+        from ..vision import crop_roi
+        y = self._cam.capture_array("lores")[:360, :640]          # YUV420 ning Y (yorqinlik) qismi
+        return self._det.shrink(crop_roi(y, self._det.roi))
 
     def set_background(self):
-        self._bg = self._gray()
+        self._det.set_background(self._gray())
+
+    def presence_score(self) -> float:
+        """ROI da fon bilan farq qilgan piksellar ulushi (0..1)."""
+        return self._det.score(self._gray())
 
     def presence(self):
-        if self._bg is None:
-            self.set_background()
-            return False
-        return float(np.abs(self._gray() - self._bg).mean()) > self._threshold
+        return self._det.present(self.presence_score())
+
+    @property
+    def presence_min_fraction(self) -> float:
+        return self._det.min_fraction
 
     def capture(self):
         return self._cam.capture_array("main")

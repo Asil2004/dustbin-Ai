@@ -12,7 +12,41 @@ import time
 
 import numpy as np
 
-PRESENCE_SIZE = (160, 120)
+PRESENCE_WIDTH = 320
+
+
+class PresenceDetector:
+    """Buyumni sezish: faqat ROI ichida, fon bilan farq qilgan piksellar ulushi bo'yicha.
+    O'rtacha farq emas, ulush: ingichka igna o'rtachani deyarli o'zgartirmaydi, lekin bir necha yuz piksel
+    o'zgaradi. ROI eni PRESENCE_WIDTH pikselga kichraytiriladi (1080p da igna 2-3 piksel bo'lib qoladi)."""
+
+    def __init__(self, vision_cfg):
+        self.roi = tuple(vision_cfg.roi)
+        self.pixel_diff = int(vision_cfg.presence_pixel_diff)
+        self.min_fraction = float(vision_cfg.presence_min_fraction)
+        self._bg = None
+
+    def shrink(self, gray_roi: np.ndarray) -> np.ndarray:
+        """ROI ning kulrang tasviri -> kichraytirilgan, int16."""
+        import cv2
+        g = gray_roi
+        h, w = g.shape[:2]
+        if w > PRESENCE_WIDTH:
+            g = cv2.resize(g, (PRESENCE_WIDTH, max(1, round(h * PRESENCE_WIDTH / w))), interpolation=cv2.INTER_AREA)
+        return g.astype(np.int16)
+
+    def set_background(self, gray: np.ndarray) -> None:
+        self._bg = gray
+
+    def score(self, gray: np.ndarray) -> float:
+        """Fon bilan presence_pixel_diff dan ko'p farq qilgan piksellar ulushi (0..1)."""
+        if self._bg is None or self._bg.shape != gray.shape:
+            self._bg = gray
+            return 0.0
+        return float((np.abs(gray - self._bg) > self.pixel_diff).mean())
+
+    def present(self, score: float) -> bool:
+        return score >= self.min_fraction
 
 
 class UsbCamera:
@@ -55,8 +89,7 @@ class UsbCamera:
         self._thread.start()
 
         self._lock_settings(vision_cfg)
-        self._threshold = vision_cfg.presence_threshold
-        self._bg = None
+        self._det = PresenceDetector(vision_cfg)
 
     # -- kadr o'qish oqimi --
     def _reader(self):
@@ -121,18 +154,23 @@ class UsbCamera:
 
     # -- Camera interfeysi --
     def _gray(self) -> np.ndarray:
-        cv2 = self._cv2
-        small = cv2.resize(self._latest(), PRESENCE_SIZE, interpolation=cv2.INTER_AREA)
-        return cv2.cvtColor(small, cv2.COLOR_BGR2GRAY).astype(np.int16)
+        from .vision import crop_roi
+        roi_bgr = crop_roi(self._latest(), self._det.roi)         # avval kesish: kamroq hisob
+        return self._det.shrink(self._cv2.cvtColor(np.ascontiguousarray(roi_bgr), self._cv2.COLOR_BGR2GRAY))
 
     def set_background(self):
-        self._bg = self._gray()
+        self._det.set_background(self._gray())
+
+    def presence_score(self) -> float:
+        """ROI da fon bilan farq qilgan piksellar ulushi (0..1)."""
+        return self._det.score(self._gray())
 
     def presence(self) -> bool:
-        if self._bg is None:
-            self.set_background()
-            return False
-        return float(np.abs(self._gray() - self._bg).mean()) > self._threshold
+        return self._det.present(self.presence_score())
+
+    @property
+    def presence_min_fraction(self) -> float:
+        return self._det.min_fraction
 
     def capture(self) -> np.ndarray:
         """Chaqiruvdan keyin boshlangan kadr, RGB."""

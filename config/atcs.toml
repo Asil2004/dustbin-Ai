@@ -91,7 +91,10 @@ repeat_every_s = 3600
 model = "models/atcs.tflite"
 labels = ["igna", "qolqop_shlang", "shisha", "plastik", "bint_paxta"]   # tartib = bo'lim 1..5
 input_size = 224
-presence_threshold = 18.0   # fon bilan o'rtacha farq (0-255)
+# Buyumni sezish: ROI ichida fon bilan farq qilgan piksellar ulushi. Stolda livetest bilan ko'rib sozlanadi
+# (bo'sh lentada ulush 0 atrofida, eng kichik igna qo'yilganda chegaradan aniq oshishi kerak).
+presence_pixel_diff = 25       # piksel fondan shuncha (0-255) farq qilsa, "o'zgargan" hisoblanadi
+presence_min_fraction = 0.001  # ROI ning shuncha ulushi (0,1 %) o'zgarsa, buyum bor; eng kichik igna bilan tekshiring
 # Kamera lentadan 115 mm balandda, tik pastga. Yig'ish (atcs.collect), sinash (atcs.livetest) va ish rejimida
 # bir xil sozlama ishlatiladi. capture_size yoki roi o'zgarsa, dataset qaytadan yig'iladi.
 camera = "usb"              # "usb" = USB webkamera (OpenCV), "csi" = Raspberry Pi Camera Module (picamera2)

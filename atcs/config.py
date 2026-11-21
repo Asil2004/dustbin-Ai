@@ -35,6 +35,8 @@ def _validate(cfg) -> None:
                          "deflektor qo'shni buyumni ham surib yuboradi")
     if s.unknown_action not in ("operator", "bin"):
         raise ValueError('sorting.unknown_action: "operator" yoki "bin" bo\'lishi kerak')
+    if not (0 < cfg.vision.presence_min_fraction < 1 and 0 < cfg.vision.presence_pixel_diff < 255):
+        raise ValueError("vision.presence_min_fraction (0..1) yoki presence_pixel_diff (0..255) noto'g'ri")
     if cfg.vision.camera not in ("usb", "csi"):
         raise ValueError("vision.camera 'usb' yoki 'csi' bo'lishi kerak")
     if len(cfg.vision.labels) != 5 or len(cfg.bins.names) != 5:

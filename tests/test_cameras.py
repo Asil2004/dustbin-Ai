@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 
 from atcs import config
-from atcs.cameras import UsbCamera, open_camera
+from atcs.cameras import PresenceDetector, UsbCamera, open_camera
 
 
 class FakeCapture:
@@ -95,6 +95,18 @@ class UsbCameraTest(unittest.TestCase):
         finally:
             cam.close()
 
+    def test_presence_ignores_change_outside_roi(self):
+        cam = self.open()
+        try:
+            fake = FakeCapture.instances[-1]
+            cam.set_background()
+            with fake.lock:
+                fake.scene[:, :200] = (250, 250, 250)        # ROI dan tashqarida (roi x = 0.30 dan boshlanadi)
+            cam.capture()
+            self.assertFalse(cam.presence())
+        finally:
+            cam.close()
+
     def test_wrong_resolution_is_rejected(self):
         with self.assertRaisesRegex(RuntimeError, "capture_size"):
             self.open(native=(1280, 720))
@@ -118,6 +130,35 @@ class UsbCameraTest(unittest.TestCase):
     def test_open_camera_rejects_unknown(self):
         with self.assertRaises(ValueError):
             open_camera(vision(), "ip")
+
+
+class PresenceDetectorTest(unittest.TestCase):
+    """1080p kadr, ROI ichida ingichka igna: o'rtacha farq sezmaydi, piksel ulushi sezadi."""
+
+    def setUp(self):
+        self.v = vision()
+        self.det = PresenceDetector(self.v)
+        from atcs.vision import crop_roi
+        self.crop = lambda g: self.det.shrink(crop_roi(g, self.det.roi))
+        self.rng = np.random.default_rng(0)
+        self.bg = np.full((1080, 1920), 40, np.uint8)
+
+    def noisy(self, img):
+        return np.clip(img.astype(np.int16) + self.rng.integers(-8, 9, img.shape), 0, 255).astype(np.uint8)
+
+    def test_thin_needle_detected(self):
+        self.det.set_background(self.crop(self.noisy(self.bg)))
+        g = self.bg.copy()
+        g[500:504, 900:1060] = 200                      # ~0,4 mm x 16 mm igna (0,1 mm/piksel)
+        score = self.det.score(self.crop(self.noisy(g)))
+        self.assertTrue(self.det.present(score), f"igna sezilmadi: {score:.4%}")
+        mean_diff = float(np.abs(self.crop(g) - self.crop(self.bg)).mean())
+        self.assertLess(mean_diff, 1.0, "eski usul (o'rtacha farq) buni sezmas edi")
+
+    def test_sensor_noise_not_detected(self):
+        self.det.set_background(self.crop(self.noisy(self.bg)))
+        for _ in range(5):
+            self.assertFalse(self.det.present(self.det.score(self.crop(self.noisy(self.bg)))))
 
 
 if __name__ == "__main__":
