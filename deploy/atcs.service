@@ -1,0 +1,23 @@
+# ATCS stolini Pi yoqilganda avtomatik ishga tushirish (SegreSmart loyihasidagi g'oya asosida).
+# O'rnatish (Pi'da, loyiha papkasida):
+#   sed "s#__USER__#$USER#g; s#__DIR__#$PWD#g" deploy/atcs.service | sudo tee /etc/systemd/system/atcs.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now atcs
+# Holat va jurnal:  systemctl status atcs   |   journalctl -u atcs -f
+# To'xtatish:       sudo systemctl disable --now atcs
+[Unit]
+Description=ATCS aqlli tibbiy chiqindi saralash stoli
+After=local-fs.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__DIR__
+ExecStart=__DIR__/.venv/bin/python -m atcs
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+SupplementaryGroups=video gpio i2c spi
+
+[Install]
+WantedBy=multi-user.target

@@ -15,6 +15,15 @@ import numpy as np
 PRESENCE_WIDTH = 320
 
 
+def frame_ok(bgr: np.ndarray) -> bool:
+    """Kadr yaroqlimi: qora emas (kamera uzilgan / yopiq) va chala emas. USB 2.0 da MJPEG kadr chala kelsa
+    ("Corrupt JPEG data: premature end"), dekoder qolgan qatorlarni bir xil rang bilan to'ldiradi."""
+    if bgr is None or bgr.size == 0 or float(bgr.mean()) < 3.0:
+        return False
+    tail = bgr[-8:]
+    return not (int(tail.max()) == int(tail.min()) and int(bgr.max()) != int(bgr.min()))
+
+
 class PresenceDetector:
     """Buyumni sezish: faqat ROI ichida, fon bilan farq qilgan piksellar ulushi bo'yicha.
     O'rtacha farq emas, ulush: ingichka igna o'rtachani deyarli o'zgartirmaydi, lekin bir necha yuz piksel
@@ -90,6 +99,7 @@ class UsbCamera:
 
         self._lock_settings(vision_cfg)
         self._det = PresenceDetector(vision_cfg)
+        self.bad_frames = 0
 
     # -- kadr o'qish oqimi --
     def _reader(self):
@@ -195,8 +205,12 @@ class UsbCamera:
         return self._det.min_fraction
 
     def capture(self) -> np.ndarray:
-        """Chaqiruvdan keyin boshlangan kadr, RGB."""
-        bgr = self._latest(newer_than=time.monotonic())
+        """Chaqiruvdan keyin boshlangan yaroqli kadr, RGB. Qora yoki chala kadr kelsa, keyingisi olinadi."""
+        for _ in range(4):
+            bgr = self._latest(newer_than=time.monotonic())
+            if frame_ok(bgr):
+                break
+            self.bad_frames += 1
         return self._cv2.cvtColor(bgr, self._cv2.COLOR_BGR2RGB)
 
     def close(self):

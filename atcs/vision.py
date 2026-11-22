@@ -1,14 +1,57 @@
 """Buyumni aniqlash: kadr -> (bo'lim raqami 1..5, ishonch 0..1)."""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
 import numpy as np
 
+NEEDLE_LABEL = "igna"
+EMPTY_LABEL = "bosh"        # ixtiyoriy 6-sinf: bo'sh lenta (buyumni sezish adashgan bo'lsa)
+
 
 class Classifier(Protocol):
-    def classify(self, frame) -> tuple[int, float]: ...
+    def probs(self, frame) -> np.ndarray:
+        """vision.labels tartibidagi ehtimollar."""
+        ...
+
+
+@dataclass
+class Decision:
+    kind: str          # "bin" | "empty" | "unknown"
+    bin: int | None    # 1..5 (kind == "bin" bo'lsa)
+    confidence: float
+    label: str         # eng ehtimolli sinf nomi
+    reason: str = ""   # "igna_ustuvor" - igna ehtimoli tufayli 1-bo'limga
+
+
+def decide(probs, labels, min_confidence: float, needle_priority: float = 1.0) -> Decision:
+    """Model chiqishidan stol qarori. Controller, livetest va o'qitish hisoboti bir xil qoidani ishlatadi.
+
+    1. Ishonch min_confidence dan past - aniqlanmadi (operatorga). Noaniq buyumni odam ko'rgani eng xavfsiz.
+    2. "bosh" sinfi ishonchli bo'lsa - lenta bo'sh, buyumni sezish adashgan.
+    3. Igna ustuvor: model boshqa bo'limni ishonch bilan tanlagan, lekin igna ehtimoli >= needle_priority -
+       buyum 1-bo'limga (sharps). Ignasiz buyum sharps qutisiga tushsa zarari yo'q, igna boshqa qutiga
+       tushsa xavfli. "bosh" bilan igna to'qnashsa - aniqlanmadi (bo'sh joy uchun shlyuz ochilmasin).
+       Aniqlanmagan buyumda igna ehtimoli yuqori bo'lsa, reason = "igna_ehtimoli" (unknown_action = "bin"
+       rejimida bunday buyum unknown_bin ga emas, 1-bo'limga yuboriladi).
+    4. Aks holda - eng ehtimolli sinfning bo'limi (labels tartibi, "bosh" dan tashqari)."""
+    p = np.asarray(probs, dtype=np.float64)
+    k = int(np.argmax(p))
+    conf, top = float(p[k]), labels[k]
+    bins = [lb for lb in labels if lb != EMPTY_LABEL]
+    pn = float(p[labels.index(NEEDLE_LABEL)]) if NEEDLE_LABEL in labels else 0.0
+    needle_flag = top != NEEDLE_LABEL and pn >= needle_priority
+    if conf < min_confidence:
+        return Decision("unknown", None, conf, top, "igna_ehtimoli" if needle_flag and top != EMPTY_LABEL else "")
+    if top == EMPTY_LABEL:
+        if needle_flag:
+            return Decision("unknown", None, conf, top, "igna_yoki_bosh")
+        return Decision("empty", None, conf, top)
+    if needle_flag:
+        return Decision("bin", bins.index(NEEDLE_LABEL) + 1, pn, NEEDLE_LABEL, "igna_ustuvor")
+    return Decision("bin", bins.index(top) + 1, conf, top)
 
 
 def crop_roi(frame: np.ndarray, roi) -> np.ndarray:
@@ -87,6 +130,7 @@ class TfliteClassifier:
         return y
 
     def classify(self, frame):
+        """(eng ehtimolli sinf indeksi + 1, ishonch). Qaror uchun decide() ishlatiladi."""
         y = self.probs(frame)
         k = int(np.argmax(y))
         return k + 1, float(y[k])

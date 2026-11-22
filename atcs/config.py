@@ -33,6 +33,8 @@ def _validate(cfg) -> None:
     if s.min_spacing_mm <= s.lead_mm + s.pass_mm:
         raise ValueError("sorting.min_spacing_mm > lead_mm + pass_mm bo'lishi kerak, aks holda "
                          "deflektor qo'shni buyumni ham surib yuboradi")
+    if not 1 <= cfg.timing.presence_confirm <= 10:
+        raise ValueError("timing.presence_confirm 1..10 bo'lishi kerak")
     if s.unknown_action not in ("operator", "bin"):
         raise ValueError('sorting.unknown_action: "operator" yoki "bin" bo\'lishi kerak')
     if not (0 < cfg.vision.presence_min_fraction < 1 and 0 < cfg.vision.presence_pixel_diff < 255):
@@ -43,5 +45,11 @@ def _validate(cfg) -> None:
             raise ValueError(f"vision.{key} \"auto\" yoki son bo'lishi kerak")
     if cfg.vision.camera not in ("usb", "csi"):
         raise ValueError("vision.camera 'usb' yoki 'csi' bo'lishi kerak")
-    if len(cfg.vision.labels) != 5 or len(cfg.bins.names) != 5:
-        raise ValueError("vision.labels va bins.names 5 tadan bo'lishi kerak")
+    labels = list(cfg.vision.labels)
+    item_labels = [lb for lb in labels if lb != "bosh"]
+    if len(item_labels) != 5 or len(cfg.bins.names) != 5 or len(labels) - len(item_labels) > 1:
+        raise ValueError("vision.labels: 5 ta bo'lim sinfi (+ ixtiyoriy \"bosh\"), bins.names: 5 ta")
+    if "igna" not in item_labels:
+        raise ValueError("vision.labels da \"igna\" bo'lishi kerak (igna ustuvorligi va xavfsizlik hisoboti)")
+    if not 0 < cfg.sorting.needle_priority <= 1:
+        raise ValueError("sorting.needle_priority 0..1 oralig'ida bo'lishi kerak (1 = o'chirilgan)")

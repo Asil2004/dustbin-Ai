@@ -23,6 +23,7 @@ class SimItem:
     pos: float = 0.0           # dozatorda - lenta bo'yicha mm, asosiy lentada - X
     timer: float = 0.0
     landed_bin: int | None = None
+    needle_p: float = 0.0      # modelning "igna" ehtimoli (boshqa sinf ustun bo'lsa ham)
 
 
 @dataclass
@@ -42,16 +43,17 @@ class SimWorld:
     fill_mm: dict = field(default_factory=dict)
     statuses: list = field(default_factory=list)
     jam: bool = False              # True bo'lsa buyum shlyuzdan o'tib tushmaydi (tiqilish sinovi)
+    ghost: bool = False            # True: kamera buyum "sezadi", lekin lenta bo'sh (soya, yorug'lik o'zgarishi)
 
     def __post_init__(self):
         for b in (2, 3, 4, 5):
             self.fill_mm.setdefault(b, float(self.cfg.bins.sensor_to_bottom_mm))
 
     # ---- sinov ssenariylari uchun
-    def add_item(self, true_bin: int, confidence: float = 0.95, name: str = "") -> SimItem:
+    def add_item(self, true_bin: int, confidence: float = 0.95, name: str = "", needle_p: float = 0.0) -> SimItem:
         tail = min((i.pos for i in self.items if i.stage == "dozator"), default=None)
         pos = 0.0 if tail is None else min(0.0, tail - ITEM_GAP)
-        item = SimItem(true_bin, confidence, name or f"buyum-{len(self.items) + 1}", pos=pos)
+        item = SimItem(true_bin, confidence, name or f"buyum-{len(self.items) + 1}", pos=pos, needle_p=needle_p)
         self.items.append(item)
         return item
 
@@ -165,11 +167,11 @@ class _Camera:
     def _in_view(self):
         return [i for i in self.w.items
                 if i.stage == "dozator" and GATE_POS - CAMERA_WINDOW <= i.pos <= GATE_POS]
-    def presence(self): return bool(self._in_view())
+    def presence(self): return bool(self._in_view()) or self.w.ghost
     def capture(self):
         v = self._in_view()
         return max(v, key=lambda i: i.pos) if v else None
-    def set_background(self): pass
+    def set_background(self): self.w.ghost = False     # soya/yorug'lik endi fon bo'ldi
 
 
 class _Display:
@@ -184,11 +186,32 @@ class _Display:
 
 
 class SimClassifier:
-    """Kadr - SimItem; haqiqiy bo'limni berilgan ishonch bilan qaytaradi."""
-    def classify(self, frame):
+    """Kadr - SimItem; haqiqiy bo'limga berilgan ishonch, qolgan ehtimol boshqa sinflarga teng bo'linadi.
+    Kadr bo'sh (None) bo'lsa: "bosh" sinfi bo'lsa - u, aks holda hamma sinf teng (aniqlanmaydi)."""
+    LABELS = ["igna", "qolqop_shlang", "shisha", "plastik", "bint_paxta"]
+
+    def __init__(self, labels=None):
+        self.labels = list(labels or self.LABELS)
+
+    def probs(self, frame):
+        import numpy as np
+        n = len(self.labels)
+        items = [lb for lb in self.labels if lb != "bosh"]
         if frame is None:
-            return 5, 0.0
-        return frame.true_bin, frame.confidence
+            if "bosh" in self.labels:
+                p = np.full(n, 0.05 / (n - 1))
+                p[self.labels.index("bosh")] = 0.95
+                return p
+            return np.full(n, 1.0 / n)
+        k = self.labels.index(items[frame.true_bin - 1])
+        p = np.full(n, (1.0 - frame.confidence) / (n - 1))
+        p[k] = frame.confidence
+        if frame.needle_p and k != self.labels.index("igna"):
+            j = self.labels.index("igna")
+            rest = 1.0 - frame.confidence - frame.needle_p
+            p[:] = max(rest, 0.0) / max(1, n - 2)
+            p[k], p[j] = frame.confidence, frame.needle_p
+        return p
 
 
 def build(cfg, echo: bool = False) -> tuple[Hardware, SimWorld]:

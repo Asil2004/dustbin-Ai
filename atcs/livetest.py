@@ -29,18 +29,23 @@ FULL_ROI = (0.0, 0.0, 1.0, 1.0)
 VIEW_WIDTH = 960          # ekranga chiqariladigan kadr eni (Pi 3 uchun yengil)
 
 
-def decide(probs: np.ndarray, labels, threshold: float) -> tuple[str, int | None, float]:
-    """Stol nima qiladi: (matn, bo'lim yoki None = operator, ishonch). Controller bilan bir xil qoida."""
-    k = int(np.argmax(probs))
-    conf = float(probs[k])
-    if conf < threshold:
-        return f"OPERATOR ({labels[k]}? {conf:.0%})", None, conf
-    return f"{labels[k]} -> {k + 1}-bo'lim ({conf:.0%})", k + 1, conf
+def decide(probs: np.ndarray, labels, threshold: float, needle_priority: float = 1.0) -> tuple[str, int | None, float]:
+    """Stol nima qiladi: (matn, bo'lim yoki None, ishonch). Controller bilan bir xil qoida (vision.decide)."""
+    from .vision import decide as table_decide
+    d = table_decide(probs, list(labels), threshold, needle_priority)
+    if d.kind == "empty":
+        return f"bo'sh lenta ({d.confidence:.0%})", None, d.confidence
+    if d.kind == "unknown":
+        why = " igna?" if d.reason else ""
+        return f"OPERATOR ({d.label}?{why} {d.confidence:.0%})", None, d.confidence
+    if d.reason == "igna_ustuvor":
+        return f"igna ehtimoli {d.confidence:.0%} -> 1-bo'lim (ustuvor)", d.bin, d.confidence
+    return f"{d.label} -> {d.bin}-bo'lim ({d.confidence:.0%})", d.bin, d.confidence
 
 
 def annotate(bgr: np.ndarray, probs, labels, threshold: float, roi, fps: float = 0.0,
              presence: tuple[float, float] | None = None, infer_ms: float | None = None,
-             info: str = "") -> np.ndarray:
+             info: str = "", needle_priority: float = 1.0) -> np.ndarray:
     """Kadr ustiga ROI, holat va ehtimollarni chizish (BGR, joyida).
     probs = None bo'lsa (modelsiz rejim), tepada buyumni sezish holati chiqadi.
     presence = (o'zgargan piksellar ulushi, chegara), 0..1."""
@@ -49,7 +54,7 @@ def annotate(bgr: np.ndarray, probs, labels, threshold: float, roi, fps: float =
     x, y, rw, rh = roi
     font = cv2.FONT_HERSHEY_SIMPLEX
     if probs is not None:
-        text, bin_no, _ = decide(probs, labels, threshold)
+        text, bin_no, _ = decide(probs, labels, threshold, needle_priority)
         color = (0, 200, 255) if bin_no is None else (60, 220, 60)          # sariq = operator, yashil = bo'lim
     elif presence is not None:
         score, thr = presence
@@ -254,7 +259,7 @@ def main() -> int:
             info = f"{rgb.shape[1]}x{rgb.shape[0]}  {settings}".strip()
             annotate(bgr, probs, labels, threshold, roi, fps,
                      presence=None if score is None else (score, cfg.vision.presence_min_fraction),
-                     infer_ms=infer_ms, info=info)
+                     infer_ms=infer_ms, info=info, needle_priority=cfg.sorting.needle_priority)
             if view is not None:
                 key = view.show(bgr)
             else:
@@ -272,7 +277,7 @@ def main() -> int:
                 out.mkdir(exist_ok=True)
                 p = out / (time.strftime("%Y%m%d_%H%M%S") + ".jpg")
                 cv2.imwrite(str(p), cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
-                print(f"saqlandi: {p}" + (f"  [{decide(probs, labels, threshold)[0]}]" if probs is not None else ""))
+                print(f"saqlandi: {p}" + (f"  [{decide(probs, labels, threshold, cfg.sorting.needle_priority)[0]}]" if probs is not None else ""))
     except KeyboardInterrupt:
         pass
     finally:

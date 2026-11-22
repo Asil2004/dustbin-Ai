@@ -53,6 +53,13 @@ Kamera 115 mm balandda, tik pastga, lentaga o'xshash qora yuza ustida va stoldag
 bu rasmlar stol uchun ham yaroqli. Noutbukning o'rnatilgan kamerasi birinchi bo'lsa, tashqi kamera uchun
 `--camera-index 1` qo'shing. Noutbukning o'z kamerasidagi rasmlar stol uchun yaramaydi.
 
+**Bo'sh lenta (ixtiyoriy "bosh" sinfi):** soya yoki yorug'lik tufayli stol bekordan to'xtamasligi uchun
+bo'sh lentani ham suratga oling: `python -m atcs.collect --label bosh --auto 300 --interval 2`.
+Batafsil: [manbalar.md](manbalar.md).
+
+**Tashqi datasetlar** (Roboflow, Kaggle) o'z rasmlaringizga qo'shimcha bo'lishi mumkin:
+`training/import_dataset.py`, `train.py --extra`. Batafsil: [manbalar.md](manbalar.md).
+
 ## 2. Roboflow (ixtiyoriy)
 
 Roboflow rasmlarni ko'zdan kechirish, noto'g'ri sinfdagilarni topish, dataset versiyalarini saqlash
@@ -93,6 +100,9 @@ Hisobotda xatolar jadvali (confusion matrix) bo'ladi. Ikkita raqamga alohida e't
   0 bo'lmasa, skript xato kodi bilan tugaydi va bu modelni stolga qo'yib bo'lmaydi.
 - **`operatorga`** stolni operator qanchalik tez-tez chaqirishini ko'rsatadi. Taxminan 5 % dan oshsa,
   ko'proq rasm yig'ish kerak.
+- **`igna qoidasi bilan sharps ga (ignasiz)`**: igna ustuvorligi qoidasi (`--needle-priority`, stolda
+  `sorting.needle_priority`) tufayli sharps qutisiga ketgan ignasiz buyumlar soni. Bu qoidaning narxi: ko'p bo'lsa,
+  sharps konteyner tez to'ladi. `IGNA boshqa bo'limga` 0 bo'lib qolgan holda chegarani oshirish mumkin.
 
 Natija yomon bo'lsa, eng ko'p adashtirilgan juftlikni toping (masalan, shisha ↔ plastik) va shu ikki sinfga
 ko'proq va xilma-xilroq rasm qo'shing.

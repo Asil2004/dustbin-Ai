@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 
 from atcs import config
-from atcs.cameras import PresenceDetector, UsbCamera, open_camera
+from atcs.cameras import PresenceDetector, UsbCamera, frame_ok, open_camera
 
 
 class FakeCapture:
@@ -159,6 +159,41 @@ class PresenceDetectorTest(unittest.TestCase):
         self.det.set_background(self.crop(self.noisy(self.bg)))
         for _ in range(5):
             self.assertFalse(self.det.present(self.det.score(self.crop(self.noisy(self.bg)))))
+
+
+class FrameCheckTest(unittest.TestCase):
+    def test_frame_ok(self):
+        rng = np.random.default_rng(1)
+        good = rng.integers(20, 200, (1080, 1920, 3), dtype=np.uint8)
+        self.assertTrue(frame_ok(good))
+        self.assertFalse(frame_ok(np.zeros_like(good)), "qora kadr")
+        broken = good.copy()
+        broken[700:] = 128                                 # chala MJPEG: qolgan qism bir xil kulrang
+        self.assertFalse(frame_ok(broken))
+        self.assertTrue(frame_ok(np.full_like(good, 90)), "bir xil yorug' sahna ham yaroqli")
+
+    def test_capture_skips_broken_frame(self):
+        FakeCapture.instances.clear()
+        with mock.patch("cv2.VideoCapture", lambda *a: FakeCapture(*a)):
+            cam = UsbCamera(vision(), verbose=False)
+        try:
+            fake = FakeCapture.instances[-1]
+            orig = fake.read
+            state = {"n": 0}
+
+            def flaky():
+                ok, f = orig()
+                state["n"] += 1
+                if state["n"] % 2:
+                    f[600:] = 128                          # har ikkinchi kadr chala
+                return ok, f
+            with fake.lock:
+                fake.scene[:] = np.random.default_rng(2).integers(30, 220, fake.scene.shape, dtype=np.uint8)
+            fake.read = flaky
+            for _ in range(5):
+                self.assertTrue(frame_ok(cam.capture()))
+        finally:
+            cam.close()
 
 
 if __name__ == "__main__":

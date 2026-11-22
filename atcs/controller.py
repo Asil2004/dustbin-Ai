@@ -20,6 +20,7 @@ from dataclasses import dataclass
 
 from .events import EventLog
 from .hal.base import Hardware, Status
+from .vision import decide
 
 KUTISH, QABUL, ANIQLASH, NAVBAT, UZATISH, PAUZA, XATO, OPERATOR = (
     "KUTISH", "QABUL", "ANIQLASH", "NAVBAT", "UZATISH", "PAUZA", "XATO", "OPERATOR")
@@ -51,6 +52,7 @@ class Controller:
         self._next_fill = 0.0
         self._capture_at = 0.0
         self._retries = 0
+        self._presence_hits = 0
         self._pending: tuple[int, float] | None = None   # (bo'lim, ishonch) uzatilishi kutilayotgan buyum
         self._gate_open_at = 0.0
         self._gate_open_mm = 0.0
@@ -218,7 +220,10 @@ class Controller:
             self._belts(True, True)
             if t >= self._next_presence:
                 self._next_presence = t + tm.presence_period_s
-                if self.hw.camera.presence():
+                # bitta kadrdagi shovqin (soya, buzilgan kadr) stolni to'xtatmasin: bir necha marta ketma-ket
+                self._presence_hits = self._presence_hits + 1 if self.hw.camera.presence() else 0
+                if self._presence_hits >= tm.presence_confirm:
+                    self._presence_hits = 0
                     self._belts(False, True)
                     self._capture_at = t + tm.settle_s
                     self._retries = 0
@@ -277,24 +282,36 @@ class Controller:
     def _classify(self) -> None:
         s = self.cfg.sorting
         frame = self.hw.camera.capture()
-        bin_no, conf = self.clf.classify(frame)
-        if conf < s.min_confidence and self._retries < s.max_retries:
+        d = decide(self.clf.probs(frame), list(self.cfg.vision.labels), s.min_confidence, s.needle_priority)
+        if d.kind != "bin" and self._retries < s.max_retries:
             self._retries += 1
             self._capture_at = self._now + self.cfg.timing.settle_s
             return
-        label = self.cfg.bins.names[bin_no - 1]
-        if conf < s.min_confidence:
-            self.log.write(self._now, "unknown", guess=bin_no, confidence=round(conf, 3),
-                           action=s.unknown_action)
+        if d.kind == "empty":
+            # buyumni sezish adashgan (soya, yorug'lik): model bir necha marta "bo'sh" dedi
+            self.log.write(self._now, "false_presence", confidence=round(d.confidence, 3))
+            self.hw.camera.set_background()
+            self._next_presence = self._now + self.cfg.timing.settle_s
+            self._set_state(QABUL, "lenta bo'sh")
+            return
+        if d.kind == "unknown":
+            self.log.write(self._now, "unknown", guess=d.label, confidence=round(d.confidence, 3),
+                           reason=d.reason, action=s.unknown_action)
             if s.unknown_action == "operator":
                 self._call_operator("low_confidence",
-                                    f"Buyum aniqlanmadi ({label}? {conf:.0%}). Olib tashlang yoki to'g'rilang, "
-                                    "keyin eshikni ochib-yoping")
+                                    f"Buyum aniqlanmadi ({d.label}? {d.confidence:.0%}). Olib tashlang yoki "
+                                    "to'g'rilang, keyin eshikni ochib-yoping")
                 return
-            bin_no, label = s.unknown_bin, "aniqlanmadi"
-        self._pending = (bin_no, conf)
+            if d.reason == "igna_ehtimoli":           # igna bo'lishi mumkin: bint bo'limiga emas, sharps ga
+                bin_no, label = 1, "aniqlanmadi (igna?)"
+            else:
+                bin_no, label = s.unknown_bin, "aniqlanmadi"
+        else:
+            bin_no, label = d.bin, self.cfg.bins.names[d.bin - 1]
+        self._pending = (bin_no, d.confidence)
         self._last_label = f"{label} -> {bin_no}"
-        self.log.write(self._now, "classified", bin=bin_no, confidence=round(conf, 3), retries=self._retries)
+        self.log.write(self._now, "classified", bin=bin_no, confidence=round(d.confidence, 3),
+                       retries=self._retries, **({"reason": d.reason} if d.reason else {}))
         self._set_state(NAVBAT)
 
     def _call_operator(self, reason: str, message: str) -> None:

@@ -56,6 +56,9 @@ unknown_action = "operator" # aniqlanmagan buyum: "operator" - stol to'xtab oper
 unknown_bin = 5
 release_mm = 50             # shlyuz ochilgach dozator shuncha yurib, shlyuz yopiladi
 min_confidence = 0.70
+needle_priority = 0.15      # igna ehtimoli shundan yuqori bo'lsa, buyum 1-bo'limga (sharps), boshqa sinf
+                            # ustun bo'lsa ham. Ignani boshqa qutiga yuborishdan ko'ra, ignasiz buyumni sharps
+                            # qutisiga yuborgan xavfsizroq. 1.0 = o'chirilgan
 max_retries = 2             # past ishonchda qayta suratga olish soni
 
 [servo]
@@ -73,6 +76,7 @@ settle_s = 0.15             # to'xtagach suratga olishdan oldin kutish
 ir_timeout_s = 2.5          # shlyuz ochilgach IR shuncha vaqtda buyumni ko'rishi shart
 idle_after_s = 30           # buyum bo'lmasa lentalar to'xtaydi
 presence_period_s = 0.1     # kamera bilan buyum borligini tekshirish davri
+presence_confirm = 2        # buyum shuncha tekshiruvda ketma-ket sezilsa, dozator to'xtaydi
 fill_period_s = 2.0
 
 [bins]
@@ -90,6 +94,8 @@ repeat_every_s = 3600
 [vision]
 model = "models/atcs.tflite"
 labels = ["igna", "qolqop_shlang", "shisha", "plastik", "bint_paxta"]   # tartib = bo'lim 1..5
+# Ixtiyoriy 6-sinf "bosh" (bo'sh lenta): oxiriga qo'shilsa, model bo'sh lentani taniydi va buyumni sezish
+# adashganda stol operatorni chaqirmasdan davom etadi. Buning uchun model "bosh" bilan o'qitilgan bo'lishi kerak.
 input_size = 224
 # Buyumni sezish: ROI ichida fon bilan farq qilgan piksellar ulushi. Stolda livetest bilan ko'rib sozlanadi
 # (bo'sh lentada ulush 0 atrofida, eng kichik igna qo'yilganda chegaradan aniq oshishi kerak).

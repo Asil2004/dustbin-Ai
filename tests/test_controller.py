@@ -18,7 +18,7 @@ class Rig:
             sec, key = dotted.split("__")
             setattr(getattr(self.cfg, sec), key, value)
         self.hw, self.w = sim.build(self.cfg)
-        self.ctl = Controller(self.cfg, self.hw, sim.SimClassifier())
+        self.ctl = Controller(self.cfg, self.hw, sim.SimClassifier(self.cfg.vision.labels))
         self.ctl.start(0.0)
 
     def run(self, seconds, until=None):
@@ -50,7 +50,7 @@ class SortingTest(unittest.TestCase):
 
     def test_bin_mode_low_confidence_goes_to_unknown_bin_after_retries(self):
         r = Rig(sorting__unknown_action="bin")
-        r.w.add_item(3, 0.40)
+        r.w.add_item(3, 0.40, needle_p=0.05)
         r.wake()
         self.assertTrue(r.run(20, until=lambda: r.w.landed()))
         self.assertEqual(r.w.landed()[0][2], r.cfg.sorting.unknown_bin)
@@ -232,6 +232,64 @@ class FillAndConfigTest(unittest.TestCase):
         r = Rig()
         img = render(r.ctl.status())
         self.assertEqual(img.size, (480, 320))
+
+
+class DecisionRuleTest(unittest.TestCase):
+    """Manbalardan olingan qoidalar: igna ustuvorligi (BowenBZ) va "bo'sh" sinfi (BowenBZ, SegreSmart)."""
+
+    def test_needle_priority_overrides_confident_other_class(self):
+        r = Rig()
+        r.w.add_item(3, 0.75, "shisha, lekin igna 20 %", needle_p=0.20)
+        r.wake()
+        self.assertTrue(r.run(20, until=lambda: r.w.landed()))
+        self.assertEqual(r.w.landed()[0][2], 1, "igna ehtimoli yuqori buyum sharps ga ketishi kerak")
+        self.assertEqual(r.ctl.log.of("classified")[0]["reason"], "igna_ustuvor")
+
+    def test_low_needle_chance_keeps_class(self):
+        r = Rig()
+        r.w.add_item(3, 0.85, needle_p=0.05)
+        r.wake()
+        self.assertTrue(r.run(20, until=lambda: r.w.landed()))
+        self.assertEqual(r.w.landed()[0][2], 3)
+
+    def test_unsure_item_with_needle_chance_goes_to_sharps_in_bin_mode(self):
+        r = Rig(sorting__unknown_action="bin")
+        r.w.add_item(4, 0.45, needle_p=0.30)
+        r.wake()
+        self.assertTrue(r.run(20, until=lambda: r.w.landed()))
+        self.assertEqual(r.w.landed()[0][2], 1, "bint bo'limiga (5) emas")
+
+    def test_unsure_item_still_calls_operator(self):
+        r = Rig()
+        r.w.add_item(4, 0.45, needle_p=0.30)
+        r.wake()
+        self.assertTrue(r.run(15, until=lambda: r.ctl.state == OPERATOR))
+
+    def test_empty_class_resumes_without_operator(self):
+        r = Rig(vision__labels=["igna", "qolqop_shlang", "shisha", "plastik", "bint_paxta", "bosh"])
+        r.wake()
+        r.w.ghost = True                                   # soya: kamera "buyum bor" deydi
+        self.assertTrue(r.run(5, until=lambda: r.ctl.log.of("false_presence")))
+        self.assertNotEqual(r.ctl.state, OPERATOR)
+        r.w.add_item(2, 0.9)                               # keyingi haqiqiy buyum odatdagidek saralanadi
+        self.assertTrue(r.run(20, until=lambda: r.w.landed()))
+        self.assertEqual(r.w.landed()[0][2], 2)
+
+    def test_without_empty_class_ghost_calls_operator(self):
+        r = Rig()
+        r.wake()
+        r.w.ghost = True
+        self.assertTrue(r.run(5, until=lambda: r.ctl.state == OPERATOR))
+
+    def test_config_rejects_missing_needle_label(self):
+        import shutil
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "c.toml"
+            shutil.copy(config.DEFAULT_PATH, p)
+            text = p.read_text(encoding="utf-8").replace('labels = ["igna",', 'labels = ["ignaa",', 1)
+            p.write_text(text, encoding="utf-8")
+            with self.assertRaises(ValueError):
+                config.load(p)
 
 
 if __name__ == "__main__":

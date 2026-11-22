@@ -24,12 +24,14 @@ DEFAULT_LABELS = ["igna", "qolqop_shlang", "shisha", "plastik", "bint_paxta"]
 EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
 
-def load_dir(root: Path, labels: list[str], size: int):
+def load_dir(root: Path, labels: list[str], size: int, allow_missing: bool = False):
     from PIL import Image
     xs, ys, files = [], [], []
     for k, lb in enumerate(labels):
         d = root / lb
         if not d.is_dir():
+            if allow_missing:
+                continue
             raise SystemExit(f"'{d}' papkasi yo'q. Kerakli sinflar: {labels}")
         for f in sorted(d.iterdir()):
             if f.suffix.lower() in EXTS:
@@ -74,24 +76,40 @@ def build_model(keras, n, size, dropout=0.3):
     return keras.Model(inp, out), base
 
 
-def report(probs, y, labels, threshold, needle=0, title=""):
+def table_pred(probs, labels, threshold, needle_priority=1.0):
+    """Stol qarori (atcs.vision.decide bilan bir xil): (sinf indeksi, ishonchlimi, igna qoidasi ishladimi).
+    Igna ustuvorligi: model boshqa sinfni ishonch bilan tanlagan, lekin igna ehtimoli >= needle_priority
+    bo'lsa, buyum igna (1-bo'lim) deb yuboriladi. "bosh" ustun bo'lsa qoida ishlamaydi."""
     pred, conf = probs.argmax(1), probs.max(1)
+    sure = conf >= threshold
+    needle = labels.index("igna")
+    empty = labels.index("bosh") if "bosh" in labels else -1
+    rule = sure & (pred != needle) & (pred != empty) & (probs[:, needle] >= needle_priority)
+    return np.where(rule, needle, pred), sure, rule
+
+
+def report(probs, y, labels, threshold, needle_priority=1.0, title=""):
+    raw = probs.argmax(1)
+    pred, sure, rule = table_pred(probs, labels, threshold, needle_priority)
+    needle = labels.index("igna")
     n = len(labels)
     cm = np.zeros((n, n), int)
-    for t, p in zip(y, pred):
+    for t, p in zip(y, raw):
         cm[t, p] += 1
-    sure = conf >= threshold
     r = {
         "title": title,
         "count": int(len(y)),
-        "accuracy": float((pred == y).mean()),
+        "accuracy": float((raw == y).mean()),
         "recall": {labels[k]: float(cm[k, k] / max(1, cm[k].sum())) for k in range(n)},
         "confusion": cm.tolist(),
         "threshold": threshold,
+        "needle_priority": needle_priority,
         "to_operator": float((~sure).mean()),
         "wrong_but_sure": int(((pred != y) & sure).sum()),
-        # eng xavfli xato: igna ishonch bilan boshqa bo'limga
+        # eng xavfli xato: igna (igna qoidasidan keyin ham) ishonch bilan boshqa bo'limga
         "needle_sent_elsewhere": int(((y == needle) & (pred != needle) & sure).sum()),
+        # qoidaning narxi: ignasiz buyum sharps qutisiga
+        "rule_extra_to_sharps": int((rule & (y != needle)).sum()),
     }
     w = max(len(s) for s in labels)
     print(f"\n=== {title}: {r['count']} rasm, aniqlik {r['accuracy']:.1%}")
@@ -99,7 +117,8 @@ def report(probs, y, labels, threshold, needle=0, title=""):
     for k in range(n):
         print(f"{labels[k]:>{w}}  " + " ".join(f"{v:>7}" for v in cm[k]) + f"   recall {r['recall'][labels[k]]:.1%}")
     print(f"Ishonch < {threshold:.2f} -> operatorga: {r['to_operator']:.1%};  "
-          f"ishonch bilan xato: {r['wrong_but_sure']};  IGNA boshqa bo'limga: {r['needle_sent_elsewhere']}")
+          f"ishonch bilan xato: {r['wrong_but_sure']};  IGNA boshqa bo'limga: {r['needle_sent_elsewhere']};  "
+          f"igna qoidasi bilan sharps ga (ignasiz): {r['rule_extra_to_sharps']}")
     return r
 
 
@@ -135,6 +154,9 @@ def main() -> int:
     ap.add_argument("--batch", type=int, default=32)
     ap.add_argument("--val-split", type=float, default=0.2)
     ap.add_argument("--threshold", type=float, default=0.70, help="config: sorting.min_confidence")
+    ap.add_argument("--needle-priority", type=float, default=0.15, help="config: sorting.needle_priority")
+    ap.add_argument("--extra", action="append", default=[],
+                    help="tashqi rasmlar papkasi (import_dataset.py natijasi): faqat o'qitishga qo'shiladi")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--float", action="store_true", help="int8 o'rniga float32 TFLite")
     a = ap.parse_args()
@@ -147,6 +169,12 @@ def main() -> int:
 
     x, y, _ = load_dir(Path(a.data), labels, a.size)
     tr, va = stratified_split(y, a.val_split, a.seed)
+    tr_own = tr                     # int8 kalibrlash faqat stol kamerasi rasmlarida
+    for extra in a.extra:           # tashqi rasmlar faqat o'qitishga: tekshirish stol kamerasini o'lchaydi
+        xe, ye, _ = load_dir(Path(extra), labels, a.size, allow_missing=True)
+        print(f"Tashqi: {extra}:", {lb: int((ye == k).sum()) for k, lb in enumerate(labels)})
+        tr = np.concatenate([tr, np.arange(len(y), len(y) + len(ye))])
+        x, y = np.concatenate([x, xe]), np.concatenate([y, ye])
     print("Rasmlar:", {lb: int((y == k).sum()) for k, lb in enumerate(labels)}, f"o'qitish {len(tr)}, tekshirish {len(va)}")
     cnt = np.bincount(y[tr], minlength=len(labels))
     class_weight = {k: float(len(tr) / (len(labels) * max(1, c))) for k, c in enumerate(cnt)}
@@ -174,7 +202,7 @@ def main() -> int:
 
     results = {"labels": labels, "size": a.size}
     results["val_keras"] = report(model.predict(x[va].astype(np.float32), verbose=0), y[va], labels,
-                                  a.threshold, title="Tekshirish (Keras)")
+                                  a.threshold, a.needle_priority, title="Tekshirish (Keras)")
 
     # TFLite eksport
     sm = out / "saved_model"
@@ -182,7 +210,7 @@ def main() -> int:
     conv = tf.lite.TFLiteConverter.from_saved_model(str(sm))
     if not a.float:
         rng = np.random.default_rng(a.seed)
-        rep_idx = rng.choice(tr, size=min(300, len(tr)), replace=False)
+        rep_idx = rng.choice(tr_own, size=min(300, len(tr_own)), replace=False)
 
         def rep():
             for i in rep_idx:
@@ -196,11 +224,11 @@ def main() -> int:
     (out / "labels.txt").write_text("\n".join(labels) + "\n", encoding="utf-8")
     print(f"\nTFLite: {tfl} ({tfl.stat().st_size / 1e6:.1f} MB)")
 
-    results["val_tflite"] = report(tflite_predict(tf, tfl, x[va]), y[va], labels, a.threshold,
+    results["val_tflite"] = report(tflite_predict(tf, tfl, x[va]), y[va], labels, a.threshold, a.needle_priority,
                                    title="Tekshirish (TFLite)")
     if a.test:
         xt, yt, _ = load_dir(Path(a.test), labels, a.size)
-        results["test_tflite"] = report(tflite_predict(tf, tfl, xt), yt, labels, a.threshold,
+        results["test_tflite"] = report(tflite_predict(tf, tfl, xt), yt, labels, a.threshold, a.needle_priority,
                                         title="Alohida test (TFLite)")
     (out / "report.json").write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
 

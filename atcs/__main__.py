@@ -18,7 +18,7 @@ def run_sim(cfg, n_items: int, seed: int, screen: str | None, quiet: bool) -> in
     from .hal import sim
     hw, world = sim.build(cfg, echo=not quiet)
     log = EventLog()
-    ctl = Controller(cfg, hw, sim.SimClassifier(), log)
+    ctl = Controller(cfg, hw, sim.SimClassifier(cfg.vision.labels), log)
     rng = random.Random(seed)
     names = {1: "ochiq igna", 2: "qo'lqop", 3: "shisha ampula", 4: "shprits korpusi", 5: "bint"}
     for i in range(n_items):

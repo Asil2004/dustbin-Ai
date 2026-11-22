@@ -4,6 +4,8 @@ Kamera config dagi vision.camera bo'yicha ochiladi, o'lcham, fokus va ekspozitsi
 Noutbukda ham, Pi'da ham bir xil buyruq (stoldagi USB webkamerani noutbukka ulab yig'sa bo'ladi):
   python -m atcs.collect --label shisha
 Noutbukning o'z kamerasi emas, tashqi USB kamera kerak bo'lsa: --camera-index 1
+Bo'sh lenta ("bosh" sinfi) uchun avtomatik: python -m atcs.collect --label bosh --auto 300 --interval 2
+  (yorug'likni, soyalarni, lenta holatini o'zgartirib turing: model shularni "bo'sh" deb o'rganadi)
 
 Buyumni shlyuz oldiga qo'ying -> Enter = suratga olish, buyumni buring/almashtiring -> yana Enter.
   r + Enter  - oxirgi rasmni o'chirish
@@ -44,11 +46,13 @@ def main() -> int:
     ap.add_argument("--camera-index", type=int, help="standart: config vision.usb_index")
     ap.add_argument("--out", default="dataset")
     ap.add_argument("--note", default="", help="izoh, masalan: 'yangi partiya', 'qonli' (meta.csv ga yoziladi)")
+    ap.add_argument("--auto", type=int, default=0, help="Enter kutmasdan shuncha rasm olish (bo'sh lenta uchun)")
+    ap.add_argument("--interval", type=float, default=2.0, help="--auto da rasmlar orasidagi vaqt, s")
     ap.add_argument("--config")
     a = ap.parse_args()
 
     cfg = config_mod.load(a.config)
-    labels = list(cfg.vision.labels)
+    labels = list(cfg.vision.labels) + ([] if "bosh" in cfg.vision.labels else ["bosh"])
     if a.label not in labels:
         raise SystemExit(f"Noma'lum sinf '{a.label}'. Mumkin: {', '.join(labels)}")
     roi = cfg.vision.roi
@@ -68,9 +72,17 @@ def main() -> int:
     print(f"Kadr {first.shape[1]}x{first.shape[0]}, ROI tekshiruvi: {out / 'roi_tekshiruv.jpg'}")
     print(f"Sinf: {a.label}.  Enter = suratga olish, r = oxirgisini o'chirish, q = chiqish")
     rows: list[list] = []
+    auto_left = a.auto
     try:
         while True:
-            cmd = input(f"[{counts(out, labels)}] > ").strip().lower()
+            if a.auto:
+                if auto_left <= 0:
+                    break
+                auto_left -= 1
+                time.sleep(a.interval)
+                cmd = ""
+            else:
+                cmd = input(f"[{counts(out, labels)}] > ").strip().lower()
             if cmd == "q":
                 break
             if cmd == "r":

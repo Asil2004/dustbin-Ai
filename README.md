@@ -47,8 +47,10 @@ atcs/
   display.py      3,5" TFT holat ekrani
   events.py       hodisalar jurnali (logs/events.jsonl)
 training/train.py MobileNetV3 o'qitish -> int8 TFLite (Google Colab)
+training/import_dataset.py  tashqi datasetni (Roboflow, Kaggle) ATCS sinflariga o'tkazish
+deploy/atcs.service  Pi yoqilganda avtomatik ishga tushirish
 config/atcs.toml  barcha sozlamalar
-tests/            36 ta sinov (simulyatsiya, kamera, buyumni sezish, jonli sinov)
+tests/            52 ta sinov (simulyatsiya, kamera, buyumni sezish, jonli sinov)
 ```
 
 ## Kompyuterda sinash (Windows)
@@ -90,8 +92,11 @@ Pi kamerasi (`vision.camera = "csi"`) ishlatilsa, `python3-picamera2` ni ham o'r
 3. **Rele:** ko'p 5 V rele modullari past signal bilan yoqiladi. Shunday bo'lsa, `RelayOut(active_high=False)` qiling.
 4. **UV-C apparat blokirovkasi:** dasturdan tashqari, gerkonni rele zanjiriga ketma-ket ulash tavsiya etiladi
    (E1 sxemasi, 4-izoh).
-5. **Aniqlanmagan buyumlar:** `sorting.unknown_action = "operator"` (standart) bo'lsa, stol to'xtab operatorni
+5. **Igna ustuvorligi:** model boshqa sinfni tanlasa ham, igna ehtimoli `sorting.needle_priority` (15 %) dan
+   yuqori bo'lsa, buyum 1-bo'limga ketadi. O'xshash loyihalardan olingan bu va boshqa g'oyalar:
+   [docs/manbalar.md](docs/manbalar.md).
+6. **Aniqlanmagan buyumlar:** `sorting.unknown_action = "operator"` (standart) bo'lsa, stol to'xtab operatorni
    chaqiradi. `"bin"` bo'lsa, buyum `unknown_bin` ga (5-bo'limga) yuboriladi, lekin bu rejimda ishonchi past
    igna ham bint bo'limiga tushib qolishi mumkin.
-6. **Sharps konteyner** almashtirilgach, `Controller.reset_sharps()` chaqiriladi. Buning uchun hozircha
+7. **Sharps konteyner** almashtirilgach, `Controller.reset_sharps()` chaqiriladi. Buning uchun hozircha
    tugma yoki menyu yo'q.

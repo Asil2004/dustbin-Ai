@@ -8,3 +8,4 @@ test/
 natija/
 livetest/
 *.keras
+dataset_ext/
